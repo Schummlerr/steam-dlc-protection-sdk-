@@ -1,0 +1,10 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Binary files
+*.png binary
+*.jpg binary
+*.ico binary
+*.vsidx binary
+*.sqlite binary
+*.mpack binary

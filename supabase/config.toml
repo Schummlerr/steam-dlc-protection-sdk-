@@ -1,0 +1,5 @@
+[project]
+id = "waocbngkeujyejpfnahg"
+
+[functions.verify-dlc]
+verify_jwt = false

@@ -1,0 +1,89 @@
+# Steam DLC Protection SDK — CI Pipeline
+#
+# Runs on every push and PR to master/main:
+#   1. Crypto unit tests (ECDH + AES)
+#   2. Full API validation + security tests
+#   3. Tool smoke tests (encrypt-dlc-bundle, generate-aes-key)
+
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  test:
+    name: "Test (Node ${{ env.NODE_VERSION }})"
+    runs-on: ubuntu-latest
+
+    services:
+      # We don't need external services — the test server is local
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: local-test-server/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd local-test-server
+          npm ci
+
+      - name: Copy .env.example → .env (mock mode)
+        run: |
+          cp local-test-server/.env.example local-test-server/.env
+          echo "DLC_AES_KEY_BASE64=$(openssl rand -base64 32)" >> local-test-server/.env
+
+      - name: Start test server (background)
+        run: |
+          cd local-test-server
+          node server.js &
+          SERVER_PID=$!
+          # Wait for server to start
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:3000/health > /dev/null 2>&1; then
+              echo "Server ready (PID=$SERVER_PID)"
+              break
+            fi
+            sleep 1
+          done
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+        env:
+          MOCK_STEAM: "true"
+
+      - name: Run E2E crypto test
+        run: node tests/e2e-crypto-test.mjs
+
+      - name: Run comprehensive API + security test suite
+        run: node tests/comprehensive-api-test.mjs
+
+      - name: Tool smoke test — generate key
+        run: |
+          KEY=$(node tools/generate-aes-key.mjs)
+          KEY_LEN=$(echo "$KEY" | base64 -d | wc -c)
+          echo "Generated key length: $KEY_LEN bytes"
+          [ "$KEY_LEN" = "32" ] && echo "✅ Valid AES-256 key" || (echo "❌ Invalid key length"; exit 1)
+
+      - name: Tool smoke test — encrypt bundle
+        run: |
+          echo "test-dlc-bundle-content" > /tmp/test.bundle
+          KEY=$(node tools/generate-aes-key.mjs)
+          node tools/encrypt-dlc-bundle.mjs /tmp/test.bundle /tmp/test.enc --key-base64 "$KEY"
+          ENC_SIZE=$(wc -c < /tmp/test.enc)
+          echo "Encrypted bundle: $ENC_SIZE bytes"
+          [ "$ENC_SIZE" -gt 48 ] && echo "✅ Valid encrypted bundle (>48 bytes)" || (echo "❌ Bundle too small"; exit 1)
+
+      - name: Stop server
+        if: always()
+        run: kill $SERVER_PID 2>/dev/null || true

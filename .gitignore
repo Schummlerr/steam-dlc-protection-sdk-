@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+local-test-server/node_modules/
+
+# Environment
+.env
+local-test-server/.env
+
+# Unity
+unity-client/Library/
+unity-client/Temp/
+unity-client/Logs/
+unity-client/obj/
+unity-client/Build/
+unity-client/Builds/
+unity-client/UserSettings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Supabase
+.supabase/
+
+# Test artifacts
+tests/fixtures/*.enc
