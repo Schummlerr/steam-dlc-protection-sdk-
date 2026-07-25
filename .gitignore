@@ -21,6 +21,13 @@ Thumbs.db
 
 # Supabase
 .supabase/
+supabase/.temp/
+
+# Visual Studio
+.vs/
 
 # Test artifacts
 tests/fixtures/*.enc
+
+# Backups
+*.test.js
