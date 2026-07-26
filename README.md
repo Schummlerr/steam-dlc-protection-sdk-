@@ -1,3 +1,12 @@
+<!-- DLCPROTECT_BADGES -->
+<div align="center">
+  <a href="https://schummlerr.github.io/steam-dlc-protection-sdk-/"><img src="https://img.shields.io/badge/Landing%20Page-DLC%20Protect-blueviolet?style=for-the-badge"></a>
+  <a href="API.md"><img src="https://img.shields.io/badge/API-Docs-blue?style=for-the-badge"></a>
+  <a href="https://github.com/Schummlerr/steam-dlc-protection-sdk-/releases"><img src="https://img.shields.io/github/v/release/Schummlerr/steam-dlc-protection-sdk-?style=for-the-badge"></a>
+  <img src="https://img.shields.io/badge/tests-31%2F31-green?style=for-the-badge">
+  <img src="https://img.shields.io/badge/license-MIT-orange?style=for-the-badge">
+</div>
+
 # Steam DLC Protection SDK
 
 **Production-ready Steam DLC protection system** with end-to-end encryption, Steam authentication, forward secrecy, and secure key delivery.
