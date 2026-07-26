@@ -1,24 +1,2 @@
-[project]
-id = "waocbngkeujyejpfnahg"
-name = "dlc-protect"
-
-[api]
-enabled = true
-port = 54321
-schemas = ["public", "graphql_public"]
-extra_search_path = ["public"]
-max_request_size = 262144
-
-[db]
-enabled = true
-port = 54322
-
-[auth]
-enabled = true
-
-[edge_runtime]
-enabled = true
-policy = "per_worker"
-
 [functions.verify-dlc]
 verify_jwt = false

@@ -53,10 +53,10 @@ function concatUint8(a, b) {
   return out;
 }
 
-function btoa(buf) {
+function encodeBase64(buf) {
   let bin = "";
   for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
-  return btoa(bin);
+  return globalThis.btoa(bin);
 }
 
 function base64ToUint8(b64) {
@@ -99,15 +99,15 @@ async function wrapAesKey(aesKey, clientPublicKeyBase64) {
   const mac = new Uint8Array(await crypto.subtle.sign("HMAC", hmacKeySign, concatUint8(iv, ciphertext)));
   const serverPublicKey = new Uint8Array(await crypto.subtle.exportKey("spki", serverKeyPair.publicKey));
   return {
-    serverPublicKey: btoa(serverPublicKey),
-    iv: btoa(iv), ciphertext: btoa(ciphertext), mac: btoa(mac),
+    serverPublicKey: encodeBase64(serverPublicKey),
+    iv: encodeBase64(iv), ciphertext: encodeBase64(ciphertext), mac: encodeBase64(mac),
   };
 }
 
 // ── JWT Token (no external lib) ───────────────────────────────────────
 
 async function base64url(buf) {
-  const b64 = btoa(buf);
+  const b64 = encodeBase64(buf);
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
@@ -208,7 +208,9 @@ async function checkRateLimit(clientIp) {
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
-  const path = url.pathname;
+  // Supabase prefixes the function name in the path
+  const path = url.pathname.replace(/^\/verify-dlc/, "") || "/";
+  const cleanPath = path.endsWith("/") ? path.slice(0, -1) : path;
   const startTime = Date.now();
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
@@ -216,7 +218,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   // ── Admin Dashboard (serve HTML) ──
-  if (path === "/" || path === "/dashboard") {
+  if (cleanPath === "" || cleanPath === "/dashboard") {
     // Serve the dashboard HTML
     const html = await Deno.readTextFile(new URL("./dashboard.html", import.meta.url)).catch(() => "");
     if (html) return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
@@ -224,7 +226,7 @@ Deno.serve(async (req) => {
   }
 
   // ── Admin API ──
-    if (path === "/admin/games" && req.method === "GET") {
+    if (cleanPath === "/admin/games" && req.method === "GET") {
       try {
         const apiKey = req.headers.get("x-api-key") || "";
         const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -237,7 +239,7 @@ Deno.serve(async (req) => {
       } catch (e) { return json({ error: e.message }, 500); }
     }
 
-    if (path === "/admin/register-game" && req.method === "POST") {
+    if (cleanPath === "/admin/register-game" && req.method === "POST") {
       try {
         const apiKey = req.headers.get("x-api-key") || "";
         const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -257,7 +259,7 @@ Deno.serve(async (req) => {
       } catch (e) { return json({ error: e.message }, 500); }
     }
 
-    if (path === "/admin/add-dlc" && req.method === "POST") {
+    if (cleanPath === "/admin/add-dlc" && req.method === "POST") {
       try {
         const apiKey = req.headers.get("x-api-key") || "";
         const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -278,7 +280,7 @@ Deno.serve(async (req) => {
       } catch (e) { return json({ error: e.message }, 500); }
     }
 
-  if (path === "/health") {
+  if (cleanPath === "/health") {
     return json({ ok: true, version: "2.0.0-saas", offlineTokens: true, uptime: (Date.now() - startTime) / 1000 });
   }
 
@@ -286,7 +288,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   // ── verify-offline-token ──
-  if (path === "/verify-offline-token") {
+  if (cleanPath === "/verify-offline-token") {
     try {
       let body;
       try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
@@ -315,7 +317,7 @@ Deno.serve(async (req) => {
   }
 
   // ── verify-dlc ──
-  if (path === "/verify-dlc") {
+  if (cleanPath === "/verify-dlc") {
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL");
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -323,6 +325,9 @@ Deno.serve(async (req) => {
       const mockSteam = Deno.env.get("MOCK_STEAM") === "true";
 
       if (!supabaseUrl || !serviceRoleKey) return json({ error: "Config error" }, 500);
+
+      // --- Debug: test basic connectivity ---
+      log("debug", "verify-dlc called", { mockSteam, hasSupabaseUrl: !!supabaseUrl, hasServiceKey: !!serviceRoleKey });
 
       // Rate limiting (skip for mock)
       if (!mockSteam) {
@@ -393,8 +398,8 @@ Deno.serve(async (req) => {
       log("info", "verify-dlc success", { steamAppId, dlcId, steamId: auth.steamId, offline: !!requestOfflineToken });
       return json(response);
     } catch (e) {
-      log("error", "verify-dlc error", { error: e.message });
-      return json({ error: "Internal error" }, 500);
+      log("error", "verify-dlc error", { error: e.message, stack: e.stack?.substring(0,300) });
+      return json({ error: e.message }, 500);
     }
   }
 
