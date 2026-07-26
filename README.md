@@ -25,6 +25,25 @@
 ╚══════════════════════════════════════════════════════╝
 ```
 
+
+## 🚀 Live Demo
+
+Try the production API right now — no account needed:
+
+\{"ok":true,"version":"2.0.0-saas","offlineTokens":true,"uptime":0}Testing against http://localhost:3000
+
+PASS: Health check (mock=true)
+PASS: Local server verify-dlc + ECDH unwrap + bundle roundtrip
+
+All E2E crypto tests passed.
+**One-click deploy to Supabase:** (coming soon)
+
+\
+🚀 DLC Protect — Production Deployment
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Project: YOUR_PROJECT_REF
+
+🔗 1/5: Linking Supabase project...
 ## Table of Contents
 
 - [Architecture](#architecture)
