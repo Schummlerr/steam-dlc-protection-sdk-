@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DLC Protect — Dashboard</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1a1a25;
+    --border: #2a2a3a;
+    --text: #e0e0f0;
+    --text2: #8888aa;
+    --accent: #4f8cff;
+    --accent2: #6a5acd;
+    --green: #4caf7d;
+    --red: #e05555;
+    --orange: #f0a030;
+    --font: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+  .nav-brand { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+  .nav-brand span { color: var(--accent); }
+  .nav-badge { font-size: 11px; background: var(--accent2); padding: 2px 8px; border-radius: 4px; color: white; margin-left: 8px; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+  .card-title { font-size: 14px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .stat { background: var(--surface2); padding: 20px; border-radius: 10px; }
+  .stat-value { font-size: 28px; font-weight: 700; }
+  .stat-label { font-size: 13px; color: var(--text2); margin-top: 4px; }
+
+  input, select, textarea { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; font-family: var(--font); width: 100%; }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  textarea { font-family: 'JetBrains Mono', monospace; font-size: 13px; resize: vertical; min-height: 80px; }
+  label { font-size: 13px; color: var(--text2); display: block; margin-bottom: 4px; }
+  .form-group { margin-bottom: 16px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  button, .btn { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary { background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+  .btn-danger { background: var(--red); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-green { background: var(--green); }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 12px; color: var(--text2); text-transform: uppercase; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  tr:hover td { background: var(--surface2); }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: var(--surface2); padding: 4px; border-radius: 10px; }
+  .tab { padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text2); }
+  .tab.active { background: var(--surface); color: var(--text); }
+  .tab:hover { color: var(--text); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .code-block { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; overflow-x: auto; margin: 12px 0; position: relative; }
+  .code-block .copy-btn { position: absolute; top: 8px; right: 8px; font-size: 11px; padding: 4px 10px; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+  .badge-green { background: rgba(76, 175, 125, 0.15); color: var(--green); }
+  .badge-red { background: rgba(224, 85, 85, 0.15); color: var(--red); }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 100; animation: slideIn 0.3s ease; }
+  .toast.success { background: var(--green); color: white; }
+  .toast.error { background: var(--red); color: white; }
+  @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  @media (max-width: 768px) { .container { padding: 16px; } .form-row { grid-template-columns: 1fr; } .nav { padding: 12px 16px; } }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="nav-brand">🔐 <span>DLC</span>Protect <span class="nav-badge">SaaS</span></div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span id="loginStatus" style="font-size:13px;color:var(--text2)">Not logged in</span>
+    <input id="apiKeyInput" type="password" placeholder="Enter API Key" style="width:220px;padding:6px 10px;font-size:13px">
+    <button id="loginBtn" class="btn-sm">Login</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="grid">
+    <div class="stat"><div class="stat-value" id="statGames">—</div><div class="stat-label">Registered Games</div></div>
+    <div class="stat"><div class="stat-value" id="statDlcs">—</div><div class="stat-label">DLC Bundles</div></div>
+    <div class="stat"><div class="stat-value" id="statOnline">✅</div><div class="stat-label">Offline Tokens</div></div>
+    <div class="stat"><div class="stat-value" id="statStatus">—</div><div class="stat-label">API Status</div></div>
+  </div>
+
+  <div class="tabs" id="tabBar">
+    <div class="tab active" data-tab="games">Games</div>
+    <div class="tab" data-tab="dlcs">DLCs</div>
+    <div class="tab" data-tab="integrate">Integration</div>
+    <div class="tab" data-tab="settings">Settings</div>
+  </div>
+
+  <!-- Games Tab -->
+  <div class="tab-content active" id="tab-games">
+    <div class="card" id="gameList">
+      <div class="card-title">Your Games</div>
+      <table><thead><tr><th>Name</th><th>Steam App ID</th><th>DLC Count</th><th>Offline TTL</th><th>Status</th></tr></thead><tbody id="gamesTableBody"><tr><td colspan="5" style="text-align:center;color:var(--text2)">Login to see your games</td></tr></tbody></table>
+    </div>
+    <div class="card">
+      <div class="card-title">Register New Game</div>
+      <div class="form-row">
+        <div class="form-group"><label>Game Name</label><input id="newGameName" placeholder="e.g. My Awesome Game"></div>
+        <div class="form-group"><label>Steam App ID</label><input id="newGameAppId" type="number" placeholder="e.g. 480"></div>
+      </div>
+      <div class="form-group"><label>Offline Token Duration (hours)</label><input id="newGameOffline" type="number" value="24" min="1" max="720"></div>
+      <button id="registerGameBtn" class="btn-green">Register Game</button>
+    </div>
+  </div>
+
+  <!-- DLCs Tab -->
+  <div class="tab-content" id="tab-dlcs">
+    <div class="card" id="dlcList">
+      <div class="card-title">DLC Bundles</div>
+      <table><thead><tr><th>Steam DLC ID</th><th>Bundle Name</th><th>Game</th><th>Key</th><th>Enabled</th><th>Actions</th></tr></thead><tbody id="dlcsTableBody"><tr><td colspan="6" style="text-align:center;color:var(--text2)">Select a game first</td></tr></tbody></table>
+    </div>
+    <div class="card">
+      <div class="card-title">Add DLC</div>
+      <div class="form-group"><label>Game</label><select id="dlcGameSelect"><option value="">— Select Game —</option></select></div>
+      <div class="form-row">
+        <div class="form-group"><label>Steam DLC ID</label><input id="newDlcId" type="number" placeholder="e.g. 123456"></div>
+        <div class="form-group"><label>Bundle Name</label><input id="newDlcName" placeholder="e.g. super-dlc-pack"></div>
+      </div>
+      <div class="form-group"><label>AES-256 Encryption Key (base64)</label><input id="newDlcKey" placeholder="Leave empty to generate"></div>
+      <div style="display:flex;gap:8px">
+        <button id="addDlcBtn" class="btn-green">Add DLC</button>
+        <button id="genDlcKeyBtn" class="btn-secondary">Generate Key</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Integration Tab -->
+  <div class="tab-content" id="tab-integrate">
+    <div class="card">
+      <div class="card-title">Quick Start — Unity Integration</div>
+      <p style="color:var(--text2);margin-bottom:16px">Add DLC protection to your Unity game in 3 steps:</p>
+
+      <div style="margin-bottom:20px">
+        <h3 style="margin-bottom:8px">1. Install the SDK</h3>
+        <div class="code-block" id="codeStep1">
+Copy <code>Assets/Scripts/SteamDLCProtectionClient.cs</code> and <code>DlcLoaderExample.cs</code> into your Unity project.<br><br>
+Requires: <a href="https://steamworks.github.io/" style="color:var(--accent)" target="_blank">Steamworks.NET</a> + <a href="https://www.bouncycastle.org/csharp/" style="color:var(--accent)" target="_blank">BouncyCastle.Crypto</a>
+        </div>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <h3 style="margin-bottom:8px">2. Configure the Component</h3>
+        <div class="code-block" id="codeStep2">
+Attach <code>SteamDLCProtectionClient</code> to a GameObject in your scene.<br><br>
+<button class="copy-btn btn-sm" onclick="copyCode(this,'codeStep2')">Copy</button>
+<pre>Verify Endpoint: https://<span id="demoEndpoint">your-project</span>.supabase.co/functions/v1/verify-dlc
+API Key:         <span id="demoKey">your-api-key-here</span>
+Steam App ID:    Your game's App ID (e.g. 480)
+Target DLC ID:   The Steam DLC App ID
+Offline Cache:   ✅ Enabled (24h default)</pre>
+        </div>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <h3 style="margin-bottom:8px">3. Encrypt Your DLC Bundle</h3>
+        <div class="code-block" id="codeStep3">
+<button class="copy-btn btn-sm" onclick="copyCode(this,'codeStep3')">Copy</button>
+<pre># Generate an AES-256 key and encrypt your AssetBundle:
+node tools/generate-aes-key.mjs
+node tools/encrypt-dlc-bundle.mjs \
+    path/to/your.bundle \
+    path/to/your.enc \
+    --key-base64 "YOUR_AES_KEY"
+
+# Add the key to the DLC Protect dashboard
+# The encrypted .enc file ships with your game</pre>
+        </div>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <h3 style="margin-bottom:8px">4. Load the DLC (C# Code)</h3>
+        <div class="code-block" id="codeStep4">
+<button class="copy-btn btn-sm" onclick="copyCode(this,'codeStep4')">Copy</button>
+<pre>public class MyGameLoader : MonoBehaviour {
+    public SteamDLCProtectionClient protection;
+    public TextAsset encryptedDlcFile;
+
+    void Start() {
+        protection.RequestDlcAccess(
+            aesKey => {
+                byte[] bundle = protection.DecryptDlcAssetBundle(
+                    encryptedDlcFile.bytes, aesKey);
+                AssetBundle.LoadFromMemory(bundle);
+                Debug.Log("DLC Loaded! 🎉");
+            },
+            error => Debug.LogError("DLC failed: " + error)
+        );
+    }
+}</pre>
+        </div>
+      </div>
+
+      <div style="margin-top:24px;padding:16px;background:var(--surface2);border-radius:8px">
+        <h3 style="margin-bottom:8px;color:var(--green)">✅ Offline Support Built In</h3>
+        <p style="color:var(--text2);font-size:14px">
+        Players authenticate once (online). A token is cached locally. For the next 24 hours (configurable),
+        the DLC works even without internet. After expiry, the player needs to go online briefly to refresh.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Tab -->
+  <div class="tab-content" id="tab-settings">
+    <div class="card">
+      <div class="card-title">API Key</div>
+      <div class="form-group"><label>Your API Key</label>
+        <div style="display:flex;gap:8px">
+          <input id="displayApiKey" readonly value="—" style="font-family:monospace;flex:1">
+          <button class="btn-secondary btn-sm" onclick="copyText(document.getElementById('displayApiKey').value)">Copy</button>
+        </div>
+      </div>
+      <p style="color:var(--text2);font-size:13px">Include this key in the <code style="background:var(--surface2);padding:1px 4px;border-radius:3px">X-Api-Key</code> header of all requests.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">API Endpoints</div>
+      <table>
+        <tr><td><code>POST /verify-dlc</code></td><td>Verify Steam ticket + DLC ownership, get wrapped AES key</td></tr>
+        <tr><td><code>POST /verify-offline-token</code></td><td>Use cached offline token to get a new wrapped key</td></tr>
+        <tr><td><code>GET /health</code></td><td>Health check</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Need Help?</div>
+      <p style="color:var(--text2)">Contact: <a href="mailto:support@dlcprotect.com" style="color:var(--accent)">support@dlcprotect.com</a></p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+let apiKey = "";
+let games = [];
+let dlcs = [];
+let baseUrl = window.location.origin;
+
+// ── Toast ──
+function toast(msg, type = "success") {
+  const t = document.createElement("div");
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ── Copy ──
+function copyCode(btn, id) {
+  const el = document.getElementById(id);
+  const text = el.querySelector("pre")?.textContent || el.textContent;
+  navigator.clipboard.writeText(text.trim()).then(() => { btn.textContent = "Copied!"; setTimeout(() => btn.textContent = "Copy", 1500); });
+}
+function copyText(t) { navigator.clipboard.writeText(t); toast("Copied!"); }
+
+// ── Tabs ──
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+  });
+});
+
+// ── Login ──
+document.getElementById("loginBtn").addEventListener("click", async () => {
+  const key = document.getElementById("apiKeyInput").value.trim();
+  if (!key) { toast("Enter an API key", "error"); return; }
+  apiKey = key;
+  document.getElementById("loginStatus").textContent = "Logged in ✓";
+  document.getElementById("displayApiKey").value = key;
+  await loadData();
+});
+
+// ── Load Data ──
+async function loadData() {
+  try {
+    const res = await fetch(baseUrl + "/admin/games", { headers: { "X-Api-Key": apiKey } });
+    if (!res.ok) { toast("Invalid API key", "error"); return; }
+    const data = await res.json();
+    games = data.games || [];
+    renderGames();
+    renderDlcSelect();
+    updateStats();
+    toast("Dashboard loaded");
+  } catch (e) { toast("Connection error: " + e.message, "error"); }
+}
+
+// ── Render Games ──
+function renderGames() {
+  const tbody = document.getElementById("gamesTableBody");
+  if (games.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2)">No games registered</td></tr>'; return; }
+  tbody.innerHTML = games.map(g => `<tr>
+    <td><strong>${g.name}</strong></td>
+    <td>${g.steam_app_id}</td>
+    <td>${g.dlc_count || "—"}</td>
+    <td>${g.offline_token_duration_hours || 24}h</td>
+    <td><span class="badge badge-green">Active</span></td>
+  </tr>`).join("");
+}
+
+function renderDlcSelect() {
+  const sel = document.getElementById("dlcGameSelect");
+  sel.innerHTML = '<option value="">— Select Game —</option>' + games.map(g => `<option value="${g.id}">${g.name} (App ${g.steam_app_id})</option>`).join("");
+}
+
+// ── Register Game ──
+document.getElementById("registerGameBtn").addEventListener("click", async () => {
+  const name = document.getElementById("newGameName").value.trim();
+  const appId = parseInt(document.getElementById("newGameAppId").value);
+  const offline = parseInt(document.getElementById("newGameOffline").value) || 24;
+  if (!name || !appId) { toast("Fill in name and App ID", "error"); return; }
+  try {
+    const res = await fetch(baseUrl + "/verify-dlc/admin/register-game", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+      body: JSON.stringify({ name, steamAppId: appId, offlineTokenHours: offline }),
+    });
+    if (!res.ok) { const d = await res.json(); toast(d.error || "Failed", "error"); return; }
+    toast("Game registered! 🎉");
+    document.getElementById("newGameName").value = "";
+    document.getElementById("newGameAppId").value = "";
+    await loadData();
+  } catch (e) { toast("Error: " + e.message, "error"); }
+});
+
+// ── Stats ──
+function updateStats() {
+  document.getElementById("statGames").textContent = games.length;
+  document.getElementById("statDlcs").textContent = dlcs.length || "—";
+  document.getElementById("statOnline").innerHTML = "✅ 24h";
+  document.getElementById("statStatus").textContent = "Online";
+}
+
+// ── DLC Key Generator ──
+document.getElementById("genDlcKeyBtn").addEventListener("click", () => {
+  const key = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
+  document.getElementById("newDlcKey").value = key;
+  toast("Key generated!");
+});
+
+document.getElementById("addDlcBtn").addEventListener("click", async () => {
+  const gameId = document.getElementById("dlcGameSelect").value;
+  const dlcId = parseInt(document.getElementById("newDlcId").value);
+  const name = document.getElementById("newDlcName").value.trim();
+  let key = document.getElementById("newDlcKey").value.trim();
+  if (!gameId || !dlcId) { toast("Select a game and enter DLC ID", "error"); return; }
+  if (!key) {
+    key = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
+    document.getElementById("newDlcKey").value = key;
+  }
+  try {
+    const res = await fetch(baseUrl + "/verify-dlc/admin/add-dlc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+      body: JSON.stringify({ gameId, steamDlcId: dlcId, bundleName: name, aesKeyBase64: key }),
+    });
+    if (!res.ok) { const d = await res.json(); toast(d.error || "Failed", "error"); return; }
+    toast("DLC added! 🎉");
+    document.getElementById("newDlcId").value = "";
+    document.getElementById("newDlcName").value = "";
+    document.getElementById("newDlcKey").value = "";
+  } catch (e) { toast("Error: " + e.message, "error"); }
+});
+</script>
+</body>
+</html>

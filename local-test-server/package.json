@@ -4,17 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-      "start": "node server.js",
-      "test": "node ../tests/e2e-crypto-test.mjs && node ../tests/comprehensive-api-test.mjs",
-      "test:e2e": "node ../tests/e2e-crypto-test.mjs",
-      "test:all": "node ../tests/comprehensive-api-test.mjs"
-    },
+    "start": "node start.mjs",
+    "dev": "node server.js",
+    "test": "node ../tests/e2e-crypto-test.mjs && node ../tests/comprehensive-api-test.mjs",
+    "test:e2e": "node ../tests/e2e-crypto-test.mjs",
+    "test:all": "node ../tests/comprehensive-api-test.mjs",
+    "test:ci": "DISABLE_RATE_LIMIT=true node ../tests/comprehensive-api-test.mjs"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
     "axios": "^1.7.9",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "express-rate-limit": "^8.6.0"
+    "express-rate-limit": "^8.6.0",
+    "jsonwebtoken": "^9.0.3"
   }
 }

@@ -13,6 +13,7 @@ import crypto from "crypto";
 import assert from "assert";
 
 const SERVER_URL = process.env.TEST_SERVER_URL || "http://localhost:3000";
+const API_KEY = process.env.TEST_API_KEY || "sk_test_dlc_protection_demo_key_2026";  // SaaS API key
 const TRANSPORT_SALT = Buffer.from("dlc-protection-sdk-v1-transport", "utf8");
 
 // ── Crypto Helpers ──────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ async function post(endpoint, body) {
   const url = `${SERVER_URL}${endpoint}`;
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers: { "Content-Type": "application/json", Accept: "application/json", "X-Api-Key": API_KEY },
     body: JSON.stringify(body),
   });
   const data = response.ok || response.status < 500 ? await response.json() : null;
@@ -226,7 +227,7 @@ const testEmptyBody = test("400 — empty body", async () => {
 const testInvalidJson = test("400 — invalid JSON body", async () => {
   const response = await fetch(`${SERVER_URL}/verify-dlc`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Api-Key": API_KEY },
     body: "not-json-at-all",
   });
   assert.strictEqual(response.status, 400);
@@ -368,7 +369,7 @@ const testCorsHeaders = test("POST response has CORS headers", async () => {
   const client = generateClientKeyPair();
   const response = await fetch(`${SERVER_URL}/verify-dlc`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Api-Key": API_KEY },
     body: JSON.stringify({
       steamAppId: 480,
       dlcId: 123456,
@@ -485,7 +486,55 @@ const testGenerateKeyTool = test("generate-aes-key.mjs produces valid 32-byte ba
   assert.match(key, /^[A-Za-z0-9+/=]+$/, "Should be valid base64");
 });
 
-// ── Suite 13: Rate Limiting ──
+// ── Suite 13: Offline Token Support ──
+
+const testOfflineToken = test("POST /verify-dlc with requestOfflineToken returns token", async () => {
+  const client = generateClientKeyPair();
+  const ticketHex = crypto.randomBytes(64).toString("hex");
+  const { status, data } = await post("/verify-dlc", {
+    steamAppId: 480,
+    dlcId: 123456,
+    ticketHex,
+    identity: "dlc-protection-sdk-v1",
+    clientPublicKey: client.spkiBase64,
+    requestOfflineToken: true,
+  });
+  assert.strictEqual(status, 200);
+  assert.strictEqual(data.success, true);
+  assert.ok(data.offlineToken, "Should return an offline token");
+  assert.ok(data.offlineTokenExpiresInHours > 0, "Should have expiration");
+  assert.ok(data.offlineToken.split(".").length === 3, "Token should be JWT-like (3 parts)");
+  console.log("  (offline token received, TTL:", data.offlineTokenExpiresInHours, "hours)");
+});
+
+const testOfflineTokenVerify = test("POST /verify-offline-token verifies cached token", async () => {
+  // First get a token
+  const client = generateClientKeyPair();
+  const ticketHex = crypto.randomBytes(64).toString("hex");
+  const { data: verifyData } = await post("/verify-dlc", {
+    steamAppId: 480,
+    dlcId: 123456,
+    ticketHex,
+    identity: "dlc-protection-sdk-v1",
+    clientPublicKey: client.spkiBase64,
+    requestOfflineToken: true,
+  });
+  assert.ok(verifyData.offlineToken, "Must have offline token");
+
+  // New session (new key pair) — verify using the cached token
+  const client2 = generateClientKeyPair();
+  const { status, data } = await post("/verify-offline-token", {
+    token: verifyData.offlineToken,
+    clientPublicKey: client2.spkiBase64,
+    dlcId: 123456,
+  });
+  assert.strictEqual(status, 200);
+  assert.strictEqual(data.success, true);
+  assert.ok(data.wrappedKey, "Should unwrap key from offline token");
+  console.log("  (offline token verification successful)");
+});
+
+// ── Suite 14: Rate Limiting ──
 
 const testRateLimitHeaders = test("Rate limit headers present on limited request", async () => {
   // Force a burst to trigger the 20/min limit
@@ -503,7 +552,7 @@ const testRateLimitHeaders = test("Rate limit headers present on limited request
   for (let i = 0; i < 30; i++) {
     const response = await fetch(`${SERVER_URL}/verify-dlc`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json", "X-Api-Key": API_KEY },
       body: JSON.stringify(payload),
     });
     if (response.status === 429) {
@@ -527,7 +576,24 @@ await run(
   // Suite 2: Happy Path
   testHappyPath,
 
-  // Suite 3: Missing Fields
+  // Suite 3: Forward Secrecy (run early before rate limit exhausts)
+  testTwoRequestsDifferentKeys,
+
+  // Suite 4: Method Restrictions (run early — GET/OPTIONS count against rate limit)
+  testGetReturns405,
+  testOptionsReturns204,
+
+  // Suite 5: CORS (1 POST, still early)
+  testCorsHeaders,
+
+  // Suite 6: Ticket Validation (small volume, run before bulk)
+  testInvalidTicketHex,
+  testOddLengthTicket,
+
+  // Suite 7: DoS Protection (single POST, run early)
+  testLargeTicket,
+
+  // Suite 8: Missing Fields
   testMissingSteamAppId,
   testMissingDlcId,
   testMissingTicketHex,
@@ -535,41 +601,28 @@ await run(
   testEmptyBody,
   testInvalidJson,
 
-  // Suite 4: Invalid Data Types
+  // Suite 9: Invalid Data Types
   testNegativeAppId,
   testZeroAppId,
   testNegativeDlcId,
   testStringAppId,
 
-  // Suite 5: Public Key Validation
+  // Suite 10: Public Key Validation
   testEmptyPublicKey,
   testShortPublicKey,
   testGarbagePublicKey,
 
-  // Suite 6: Ticket Validation
-  testInvalidTicketHex,
-  testOddLengthTicket,
+  // ── Suite 11: Offline Token Tests
+  testOfflineToken,
+  testOfflineTokenVerify,
 
-  // Suite 7: DoS Protection
-  testLargeTicket,
-
-  // Suite 8: Method Restrictions
-  testGetReturns405,
-  testOptionsReturns204,
-
-  // Suite 9: CORS
-  testCorsHeaders,
-
-  // Suite 10: Forward Secrecy
-  testTwoRequestsDifferentKeys,
-
-  // Suite 11: Encrypt Tool
+  // Suite 12: Encrypt Tool
   testEncryptTool,
   testEncryptToolGenerateKey,
 
-  // ── Suite 12: Key Gen Tool
+  // ── Suite 13: Key Gen Tool
   testGenerateKeyTool,
 
-  // ── Suite 13: Rate Limiting
+  // ── Suite 14: Rate Limiting (runs last, rate limiter active)
   testRateLimitHeaders,
 );

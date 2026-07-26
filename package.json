@@ -1,0 +1,24 @@
+{
+  "name": "steam-dlc-protection-sdk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-ready Steam DLC protection system with end-to-end encryption",
+  "scripts": {
+    "start": "cd local-test-server && npm start",
+    "dev": "cd local-test-server && npm run dev",
+    "test": "cd local-test-server && npm test",
+    "test:e2e": "node tests/e2e-crypto-test.mjs",
+    "test:all": "node tests/comprehensive-api-test.mjs",
+    "test:ci": "DISABLE_RATE_LIMIT=true node tests/comprehensive-api-test.mjs",
+    "test:prod": "bash scripts/test-production.sh",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:test": "docker compose run --rm dlc-server npm test",
+    "admin": "node tools/dlc-admin.mjs",
+    "generate-key": "node tools/generate-aes-key.mjs",
+    "encrypt-bundle": "node tools/encrypt-dlc-bundle.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

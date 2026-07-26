@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  # ── Local Test Server ────────────────────────────────────────────
+  dlc-server:
+    build:
+      context: ./local-test-server
+      dockerfile: Dockerfile
+    container_name: dlc-protection-server
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - MOCK_STEAM=true
+      - DISABLE_RATE_LIMIT=false
+      - STEAM_WEB_API_KEY=${STEAM_WEB_API_KEY:-}
+      - DLC_AES_KEY_BASE64=${DLC_AES_KEY_BASE64:-}
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks:
+      - dlc-network
+
+  # ── PostgreSQL (Production-like DB) ──────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: dlc-protection-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: dlc_protection
+      POSTGRES_USER: dlc_admin
+      POSTGRES_PASSWORD: dlc_dev_password_change_me
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dlc_admin -d dlc_protection"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - dlc-network
+
+  # ── Adminer (DB GUI for development) ────────────────────────────
+  adminer:
+    image: adminer:4.8.1
+    container_name: dlc-protection-adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dlc-network
+
+volumes:
+  pgdata:
+
+networks:
+  dlc-network:
+    driver: bridge

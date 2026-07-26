@@ -18,6 +18,7 @@ public class DlcVerifyRequest
     public string ticketHex;
     public string identity;
     public string clientPublicKey;
+    public bool requestOfflineToken;
 }
 
 [Serializable]
@@ -36,6 +37,16 @@ public class DlcVerifyResponse
     public string steamId;
     public string error;
     public WrappedKeyPayload wrappedKey;
+    public string offlineToken;
+    public int offlineTokenExpiresInHours;
+}
+
+[Serializable]
+public class OfflineVerifyRequest
+{
+    public string token;
+    public string clientPublicKey;
+    public uint dlcId;
 }
 
 public class SteamDLCProtectionClient : MonoBehaviour
@@ -44,10 +55,17 @@ public class SteamDLCProtectionClient : MonoBehaviour
 
     [Header("Backend")]
     [SerializeField] private string verifyEndpointUrl = "http://localhost:3000/verify-dlc";
+    [SerializeField] private string offlineVerifyEndpointUrl = "http://localhost:3000/verify-offline-token";
+    [SerializeField] private string apiKey = "sk_test_dlc_protection_demo_key_2026";
 
     [Header("Game")]
     [SerializeField] private uint steamAppId = 480;
     [SerializeField] private uint targetDlcId = 123456;
+
+    [Header("Offline Support")]
+    [SerializeField] private bool enableOfflineCache = true;
+    private const string OfflineTokenPrefKey = "DLC_OfflineToken";
+    private const string OfflineTokenExpiryPrefKey = "DLC_OfflineTokenExpiry";
 
     private Callback<GetTicketForWebApiResponse_t> _ticketCallback;
     private HAuthTicket _pendingTicketHandle = HAuthTicket.Invalid;
@@ -58,7 +76,7 @@ public class SteamDLCProtectionClient : MonoBehaviour
     {
         if (!SteamAPI.Init())
         {
-            Debug.LogError("[DLCProtection] SteamAPI.Init() fehlgeschlagen.");
+            Debug.LogError("[DLCProtection] SteamAPI.Init() failed.");
             enabled = false;
             return;
         }
@@ -88,6 +106,64 @@ public class SteamDLCProtectionClient : MonoBehaviour
 
     private IEnumerator RequestDlcAccessCoroutine(Action<byte[]> onAesKeyReady, Action<string> onError)
     {
+        // Step 1: Check for cached offline token
+        if (enableOfflineCache && HasValidOfflineToken())
+        {
+            string token = PlayerPrefs.GetString(OfflineTokenPrefKey, "");
+            Debug.Log("[DLCProtection] Valid offline token found, verifying...");
+
+            var clientKeyPair = GenerateEcKeyPair();
+            byte[] clientPublicKey = GetPublicKeyBytes(clientKeyPair.Public);
+
+            var requestBody = new OfflineVerifyRequest
+            {
+                token = token,
+                clientPublicKey = Convert.ToBase64String(clientPublicKey),
+                dlcId = targetDlcId,
+            };
+
+            string json = JsonUtility.ToJson(requestBody);
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
+
+            using (UnityWebRequest www = new UnityWebRequest(offlineVerifyEndpointUrl, "POST"))
+            {
+                www.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                www.downloadHandler = new DownloadHandlerBuffer();
+                www.SetRequestHeader("Content-Type", "application/json");
+                www.SetRequestHeader("Accept", "application/json");
+                www.SetRequestHeader("X-Api-Key", apiKey);
+
+                www.timeout = 10;
+                yield return www.SendWebRequest();
+
+                if (www.result == UnityWebRequest.Result.Success)
+                {
+                    DlcVerifyResponse response = JsonUtility.FromJson<DlcVerifyResponse>(www.downloadHandler.text);
+                    if (response != null && response.success && response.wrappedKey != null)
+                    {
+                        try
+                        {
+                            byte[] aesKey = UnwrapAesKey(clientKeyPair.Private, response.wrappedKey);
+                            Debug.Log("[DLCProtection] Offline token verified, DLC accessible.");
+                            onAesKeyReady?.Invoke(aesKey);
+                            yield break;
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogWarning($"[DLCProtection] Offline token unwrap failed: {ex.Message}");
+                            // Fall through to online verification
+                        }
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"[DLCProtection] Offline verification failed: {www.error}");
+                    // Fall through to online verification
+                }
+            }
+        }
+
+        // Step 2: Online verification (with optional offline token request)
         byte[] ticketBytes = null;
         string ticketError = null;
         bool ticketDone = false;
@@ -102,68 +178,88 @@ public class SteamDLCProtectionClient : MonoBehaviour
 
         if (ticketBytes == null || ticketBytes.Length == 0)
         {
-            onError?.Invoke(ticketError ?? "Leeres Steam-Ticket.");
+            onError?.Invoke(ticketError ?? "Empty Steam ticket.");
             yield break;
         }
 
-        var clientKeyPair = GenerateEcKeyPair();
-
-        byte[] clientPublicKey = GetPublicKeyBytes(clientKeyPair.Public);
-
+        var clientKeyPairOnline = GenerateEcKeyPair();
+        byte[] clientPublicKeyOnline = GetPublicKeyBytes(clientKeyPairOnline.Public);
         string ticketHex = BytesToHex(ticketBytes);
 
-        var requestBody = new DlcVerifyRequest
+        var requestBodyOnline = new DlcVerifyRequest
         {
             steamAppId = steamAppId,
             dlcId = targetDlcId,
             ticketHex = ticketHex,
             identity = TicketIdentity,
-            clientPublicKey = Convert.ToBase64String(clientPublicKey)
+            clientPublicKey = Convert.ToBase64String(clientPublicKeyOnline),
+            requestOfflineToken = enableOfflineCache,  // Request token for offline use
         };
 
-        string json = JsonUtility.ToJson(requestBody);
-        byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
+        string jsonOnline = JsonUtility.ToJson(requestBodyOnline);
+        byte[] bodyRawOnline = Encoding.UTF8.GetBytes(jsonOnline);
 
         using (UnityWebRequest www = new UnityWebRequest(verifyEndpointUrl, "POST"))
         {
-            www.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            www.uploadHandler = new UploadHandlerRaw(bodyRawOnline);
             www.downloadHandler = new DownloadHandlerBuffer();
             www.SetRequestHeader("Content-Type", "application/json");
             www.SetRequestHeader("Accept", "application/json");
+            www.SetRequestHeader("X-Api-Key", apiKey);
 
+            www.timeout = 15;
             yield return www.SendWebRequest();
 
             if (www.result != UnityWebRequest.Result.Success)
             {
-                onError?.Invoke($"HTTP-Fehler: {www.error} | Body: {www.downloadHandler.text}");
+                onError?.Invoke($"HTTP error: {www.error} | Body: {www.downloadHandler.text}");
                 yield break;
             }
 
-            DlcVerifyResponse response =
-                JsonUtility.FromJson<DlcVerifyResponse>(www.downloadHandler.text);
+            DlcVerifyResponse response = JsonUtility.FromJson<DlcVerifyResponse>(www.downloadHandler.text);
 
             if (response == null || !response.success || response.wrappedKey == null)
             {
-                onError?.Invoke(response?.error ?? "Backend lehnte Anfrage ab.");
+                onError?.Invoke(response?.error ?? "Backend rejected request.");
                 yield break;
+            }
+
+            // Cache offline token if provided
+            if (!string.IsNullOrEmpty(response.offlineToken))
+            {
+                PlayerPrefs.SetString(OfflineTokenPrefKey, response.offlineToken);
+                PlayerPrefs.SetString(OfflineTokenExpiryPrefKey, 
+                    DateTime.UtcNow.AddHours(response.offlineTokenExpiresInHours).ToString("o"));
+                PlayerPrefs.Save();
+                Debug.Log($"[DLCProtection] Offline token cached ({response.offlineTokenExpiresInHours}h TTL)");
             }
 
             byte[] aesKey;
-
             try
             {
-                aesKey = UnwrapAesKey(clientKeyPair.Private, response.wrappedKey);
+                aesKey = UnwrapAesKey(clientKeyPairOnline.Private, response.wrappedKey);
             }
             catch (Exception ex)
             {
-                onError?.Invoke($"Schlüssel-Entschlüsselung fehlgeschlagen: {ex.Message}");
+                onError?.Invoke($"Key unwrap failed: {ex.Message}");
                 yield break;
             }
 
-            Debug.Log($"[DLCProtection] Zugriff bestätigt für SteamID {response.steamId}");
-
+            Debug.Log($"[DLCProtection] Access granted for SteamID {response.steamId}");
             onAesKeyReady?.Invoke(aesKey);
         }
+    }
+
+    private bool HasValidOfflineToken()
+    {
+        string expiryStr = PlayerPrefs.GetString(OfflineTokenExpiryPrefKey, "");
+        if (string.IsNullOrEmpty(expiryStr)) return false;
+
+        if (DateTime.TryParse(expiryStr, out DateTime expiry))
+        {
+            return DateTime.UtcNow < expiry;
+        }
+        return false;
     }
 
     private void RequestWebApiTicket(Action<byte[]> onReady, Action<string> onError)
@@ -180,7 +276,7 @@ public class SteamDLCProtectionClient : MonoBehaviour
         _pendingTicketHandle = SteamUser.GetAuthTicketForWebApi(TicketIdentity);
         if (_pendingTicketHandle == HAuthTicket.Invalid)
         {
-            onError?.Invoke("GetAuthTicketForWebApi() lieferte ungültiges Handle.");
+            onError?.Invoke("GetAuthTicketForWebApi() returned invalid handle.");
             return;
         }
 
@@ -192,7 +288,7 @@ public class SteamDLCProtectionClient : MonoBehaviour
         yield return new WaitForSeconds(seconds);
         if (_onTicketReady != null)
         {
-            _onTicketError?.Invoke("Steam-Ticket-Timeout.");
+            _onTicketError?.Invoke("Steam ticket timeout.");
             _onTicketReady = null;
             _onTicketError = null;
         }
@@ -205,7 +301,7 @@ public class SteamDLCProtectionClient : MonoBehaviour
 
         if (callback.m_eResult != EResult.k_EResultOK)
         {
-            _onTicketError?.Invoke($"Steam-Ticket-Fehler: {callback.m_eResult}");
+            _onTicketError?.Invoke($"Steam ticket error: {callback.m_eResult}");
             _onTicketReady = null;
             _onTicketError = null;
             return;
@@ -214,7 +310,7 @@ public class SteamDLCProtectionClient : MonoBehaviour
         byte[] ticket = callback.m_rgubTicket;
         if (ticket == null || ticket.Length == 0 || callback.m_cubTicket <= 0)
         {
-            _onTicketError?.Invoke("Steam lieferte leeres Ticket.");
+            _onTicketError?.Invoke("Steam returned empty ticket.");
             _onTicketReady = null;
             _onTicketError = null;
             return;
@@ -235,9 +331,7 @@ public class SteamDLCProtectionClient : MonoBehaviour
     public byte[] DecryptDlcAssetBundle(byte[] encryptedBundle, byte[] aesKey)
     {
         if (encryptedBundle == null || encryptedBundle.Length < 48)
-            throw new ArgumentException("Verschlüsseltes Bundle zu kurz (erwartet: iv(16) + hmac(32) + ciphertext).");
-
-        Debug.Log($"[DLCProtection] Decrypt - encryptedBundle.Length: {encryptedBundle.Length}");
+            throw new ArgumentException("Encrypted bundle too short (expected: iv(16) + hmac(32) + ciphertext).");
 
         byte[] iv = new byte[16];
         byte[] mac = new byte[32];
@@ -248,11 +342,9 @@ public class SteamDLCProtectionClient : MonoBehaviour
         byte[] ciphertext = new byte[cipherLen];
         Buffer.BlockCopy(encryptedBundle, 48, ciphertext, 0, cipherLen);
 
-        Debug.Log($"[DLCProtection] Decrypt - iv: {iv.Length}, mac: {mac.Length}, ciphertext: {ciphertext.Length}");
-
         byte[] computedMac = ComputeHmacSha256(aesKey, Concat(iv, ciphertext));
         if (!FixedTimeEquals(mac, computedMac))
-            throw new CryptographicException("HMAC-Prüfung fehlgeschlagen — Bundle manipuliert oder falscher Schlüssel.");
+            throw new CryptographicException("HMAC check failed — bundle tampered or wrong key.");
 
         using (Aes aes = Aes.Create())
         {
@@ -264,9 +356,7 @@ public class SteamDLCProtectionClient : MonoBehaviour
 
             using (ICryptoTransform decryptor = aes.CreateDecryptor())
             {
-                byte[] decrypted = decryptor.TransformFinalBlock(ciphertext, 0, ciphertext.Length);
-                Debug.Log($"[DLCProtection] Decrypt - decrypted.Length: {decrypted.Length}");
-                return decrypted;
+                return decryptor.TransformFinalBlock(ciphertext, 0, ciphertext.Length);
             }
         }
     }
@@ -280,27 +370,19 @@ public class SteamDLCProtectionClient : MonoBehaviour
         byte[] ciphertext = Convert.FromBase64String(wrapped.ciphertext);
         byte[] mac = Convert.FromBase64String(wrapped.mac);
 
-        var serverPublicKey = (Org.BouncyCastle.Crypto.Parameters.ECPublicKeyParameters)
-            Org.BouncyCastle.Security.PublicKeyFactory.CreateKey(serverPublicKeyBytes);
+        var serverPublicKey = (ECPublicKeyParameters)
+            PublicKeyFactory.CreateKey(serverPublicKeyBytes);
 
-        var agreement =
-            new Org.BouncyCastle.Crypto.Agreement.ECDHBasicAgreement();
-
+        var agreement = new ECDHBasicAgreement();
         agreement.Init(clientPrivateKey);
 
         var sharedSecret = agreement.CalculateAgreement(serverPublicKey);
-
         byte[] rawSecret = sharedSecret.ToByteArrayUnsigned();
-
         byte[] transportKey = DeriveTransportKey(rawSecret);
 
-        byte[] expectedMac =
-            ComputeHmacSha256(
-                transportKey,
-                Concat(iv, ciphertext));
-
+        byte[] expectedMac = ComputeHmacSha256(transportKey, Concat(iv, ciphertext));
         if (!FixedTimeEquals(mac, expectedMac))
-            throw new CryptographicException("Wrapped-Key HMAC ungültig.");
+            throw new CryptographicException("Wrapped key HMAC invalid.");
 
         using (Aes aes = Aes.Create())
         {
@@ -312,10 +394,7 @@ public class SteamDLCProtectionClient : MonoBehaviour
 
             using (ICryptoTransform decryptor = aes.CreateDecryptor())
             {
-                return decryptor.TransformFinalBlock(
-                    ciphertext,
-                    0,
-                    ciphertext.Length);
+                return decryptor.TransformFinalBlock(ciphertext, 0, ciphertext.Length);
             }
         }
     }
@@ -355,36 +434,22 @@ public class SteamDLCProtectionClient : MonoBehaviour
 
     private static Org.BouncyCastle.Crypto.AsymmetricCipherKeyPair GenerateEcKeyPair()
     {
-        var random = new Org.BouncyCastle.Security.SecureRandom();
-
+        var random = new SecureRandom();
         var ecKeyGen = new Org.BouncyCastle.Crypto.Generators.ECKeyPairGenerator();
-
         var oid = Org.BouncyCastle.Asn1.Sec.SecNamedCurves.GetOid("secp256r1");
         var ecParams = Org.BouncyCastle.Asn1.Sec.SecNamedCurves.GetByOid(oid);
 
-        var domainParams = new Org.BouncyCastle.Crypto.Parameters.ECNamedDomainParameters(
-            oid,
-            ecParams.Curve,
-            ecParams.G,
-            ecParams.N,
-            ecParams.H,
-            ecParams.GetSeed());
+        var domainParams = new ECNamedDomainParameters(
+            oid, ecParams.Curve, ecParams.G, ecParams.N, ecParams.H, ecParams.GetSeed());
 
-        var keyGenParams =
-            new Org.BouncyCastle.Crypto.Parameters.ECKeyGenerationParameters(
-                domainParams,
-                random);
-
+        var keyGenParams = new ECKeyGenerationParameters(domainParams, random);
         ecKeyGen.Init(keyGenParams);
-
         return ecKeyGen.GenerateKeyPair();
     }
 
-
-    private static byte[] GetPublicKeyBytes(
-        Org.BouncyCastle.Crypto.AsymmetricKeyParameter publicKey)
+    private static byte[] GetPublicKeyBytes(Org.BouncyCastle.Crypto.AsymmetricKeyParameter publicKey)
     {
-        var ecPub = (Org.BouncyCastle.Crypto.Parameters.ECPublicKeyParameters)publicKey;
+        var ecPub = (ECPublicKeyParameters)publicKey;
         byte[] q = ecPub.Q.GetEncoded(false);
 
         byte[] header = new byte[] {
@@ -393,17 +458,10 @@ public class SteamDLCProtectionClient : MonoBehaviour
         };
 
         byte[] spki = new byte[header.Length + q.Length];
-        System.Buffer.BlockCopy(header, 0, spki, 0, header.Length);
-        System.Buffer.BlockCopy(q, 0, spki, header.Length, q.Length);
-
-        Debug.Log($"[DLCProtection] Generated SPKI length: {spki.Length}");
-
+        Buffer.BlockCopy(header, 0, spki, 0, header.Length);
+        Buffer.BlockCopy(q, 0, spki, header.Length, q.Length);
         return spki;
     }
-
-
-
-
 
     private static string BytesToHex(byte[] bytes)
     {
