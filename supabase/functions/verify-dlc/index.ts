@@ -4,7 +4,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 const TRANSPORT_SALT = "dlc-protection-sdk-v1-transport";
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 30;
-const JWT_SECRET = Deno.env.get("JWT_SECRET") || "change-me-in-production";
+const JWT_SECRET = Deno.env.get("JWT_SECRET");
+if (!JWT_SECRET) {
+  log("error", "JWT_SECRET environment variable is required");
+}
 const STEAM_APP_ID_MIN = 1;
 const STEAM_APP_ID_MAX = 4_294_967_295;
 const DLC_ID_MIN = 1;
