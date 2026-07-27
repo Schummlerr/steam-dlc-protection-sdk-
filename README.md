@@ -1,6 +1,6 @@
 # Steam DLC Protection SDK
 
-SDK for protecting Steam DLCs with ECDH + AES-256-GCM end-to-end encryption.  
+SDK for protecting Steam DLCs with ECDH + AES-256-CBC+HMAC end-to-end encryption.  
 Includes a local test server, a production Supabase Edge Function, and a Unity client.
 
 ## Architecture
