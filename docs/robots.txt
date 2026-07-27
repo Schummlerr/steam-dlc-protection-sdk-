@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://schummlerr.github.io/steam-dlc-protection-sdk-/sitemap.xml

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DLC Protect — Steam DLC Encryption SDK</title>
+<meta name="description" content="Open-source SDK for protecting Steam DLCs with ECDH P-256 + AES-256 encryption. Unity SDK, offline tokens, production-ready API.">
+<meta property="og:title" content="DLC Protect — Steam DLC Encryption SDK">
+<meta property="og:description" content="End-to-end encryption for Steam DLCs. Open-source. Unity SDK. Free to try.">
+<meta property="og:url" content="https://schummlerr.github.io/steam-dlc-protection-sdk-/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://schummlerr.github.io/steam-dlc-protection-sdk-/">
+<style>
+:root{--bg:#08080e;--srf:#0e0e17;--srf2:#161622;--bdr:#252538;--txt:#d0d0e8;--txt2:#7a7aaa;--ac:#4f8cff;--grn:#3daf7d;--red:#d44}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);line-height:1.6}
+.container{max-width:1000px;margin:0 auto;padding:0 24px}
+.hero{text-align:center;padding:80px 24px 60px;background:radial-gradient(ellipse at 50% 0,var(--srf2) 0,transparent 70%)}
+.hero h1{font-size:48px;font-weight:800;letter-spacing:-1.5px;margin-bottom:16px}
+.hero h1 span{background:linear-gradient(135deg,var(--ac),#6a5acd);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:20px;color:var(--txt2);max-width:600px;margin:0 auto 32px}
+.hero .badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:40px}
+.hero .badges span{background:var(--srf2);border:1px solid var(--bdr);padding:6px 14px;border-radius:20px;font-size:13px;color:var(--txt2)}
+.btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{padding:14px 32px;border-radius:10px;font-size:16px;font-weight:600;text-decoration:none;display:inline-block}
+.btn-pri{background:linear-gradient(135deg,var(--ac),#6a5acd);color:#fff}
+.btn-pri:hover{filter:brightness(1.1)}
+.btn-sec{background:var(--srf2);color:var(--txt);border:1px solid var(--bdr)}
+.btn-sec:hover{border-color:var(--ac)}
+.section{padding:60px 0}
+.section h2{font-size:32px;font-weight:700;margin-bottom:24px;text-align:center}
+.section h2 span{background:linear-gradient(135deg,var(--ac),#6a5acd);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.card{background:var(--srf);border:1px solid var(--bdr);border-radius:12px;padding:24px}
+.card h3{font-size:18px;margin-bottom:8px;color:var(--ac)}
+.card p{font-size:14px;color:var(--txt2);line-height:1.5}
+.code{background:var(--srf2);padding:16px;border-radius:8px;font-family:monospace;font-size:13px;overflow-x:auto;margin:16px 0}
+.code .cmt{color:#6a9955}
+.code .kw{color:#569cd6}
+.code .str{color:#ce9178}
+.steps{max-width:600px;margin:0 auto}
+.steps li{margin-bottom:16px;padding:16px;background:var(--srf);border:1px solid var(--bdr);border-radius:8px;list-style:none}
+.steps li strong{color:var(--ac);display:block;margin-bottom:4px}
+.steps li span{color:var(--txt2);font-size:14px}
+footer{text-align:center;padding:40px;color:var(--txt2);font-size:13px;border-top:1px solid var(--bdr)}
+@media(max-width:600px){.hero h1{font-size:32px}}
+</style>
+</head>
+<body>
+<div class="hero">
+  <h1><span>DLC Protect</span></h1>
+  <p>Open-source, production-ready encryption for Steam DLCs. ECDH P-256 key exchange, AES-256-GCM, offline tokens, and a Unity SDK.</p>
+  <div class="badges">
+    <span>🔐 ECDH P-256</span>
+    <span>⚡ AES-256-GCM</span>
+    <span>📡 Offline Tokens</span>
+    <span>🎮 Unity SDK</span>
+    <span>☁️ SaaS Backend</span>
+    <span>📦 31 Tests</span>
+  </div>
+  <div class="btns">
+    <a href="https://github.com/Schummlerr/steam-dlc-protection-sdk-" class="btn btn-pri">View on GitHub →</a>
+    <a href="https://github.com/Schummlerr/steam-dlc-protection-sdk-" class="btn btn-sec">Quick Start</a>
+  </div>
+</div>
+
+<div class="section">
+  <div class="container">
+    <h2><span>How It Works</span></h2>
+    <div class="grid">
+      <div class="card">
+        <h3>🔑 Key Exchange</h3>
+        <p>Client generates an ephemeral P-256 ECDH key pair per session. The server agrees on a shared secret — no private key is ever transmitted.</p>
+      </div>
+      <div class="card">
+        <h3>✅ Steam Auth</h3>
+        <p>Validates the player's Steam ticket via Valve's official API. Checks DLC ownership before delivering the decryption key.</p>
+      </div>
+      <div class="card">
+        <h3>🔒 AES-256 Delivery</h3>
+        <p>The DLC's AES key is wrapped with the ECDH-derived transport key, signed with HMAC-SHA256, and delivered to the client.</p>
+      </div>
+      <div class="card">
+        <h3>📡 Offline Tokens</h3>
+        <p>Players authenticate once and receive a 24-hour JWT token. The DLC works offline until the token expires.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="background:var(--srf)">
+  <div class="container">
+    <h2><span>Quick Start</span></h2>
+    <div class="code">
+      <span class="cmt"># 1. Clone</span><br>
+      git clone https://github.com/Schummlerr/steam-dlc-protection-sdk-<br><br>
+      <span class="cmt"># 2. Start test server</span><br>
+      cd local-test-server && npm install && npm start<br><br>
+      <span class="cmt"># 3. Run tests</span><br>
+      node tests/e2e-crypto-test.mjs<br>
+      node tests/comprehensive-api-test.mjs
+    </div>
+    <div class="btns" style="margin-top:16px">
+      <a href="https://github.com/Schummlerr/steam-dlc-protection-sdk-" class="btn btn-pri">Full Documentation →</a>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="container">
+    <h2><span>Tech Stack</span></h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Backend</h3>
+        <p>Supabase Edge Functions (Deno) with PostgreSQL. Multi-tenant SaaS architecture with rate limiting and API key auth.</p>
+      </div>
+      <div class="card">
+        <h3>Client</h3>
+        <p>Unity 2022+ C# SDK with Steamworks.NET. 3 lines of code to load a protected DLC AssetBundle.</p>
+      </div>
+      <div class="card">
+        <h3>Crypto</h3>
+        <p>ECDH P-256, AES-256-GCM, HMAC-SHA256. Forward secrecy. Timing-safe comparisons. 31 passing tests.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="background:var(--srf)">
+  <div class="container">
+    <h2><span>Try the Live API</span></h2>
+    <p style="text-align:center;color:var(--txt2);margin-bottom:24px">No account needed. No API key required.</p>
+    <div class="code">
+      curl https://waocbngkeujyejpfnahg.supabase.co/functions/v1/verify-dlc/health<br><br>
+      <span class="cmt"># Response:</span><br>
+      {<span class="str">"ok"</span>: true, <span class="str">"version"</span>: <span class="str">"2.0.0-saas"</span>, <span class="str">"offlineTokens"</span>: true}
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>DLC Protect — MIT License. <a href="https://github.com/Schummlerr/steam-dlc-protection-sdk-" style="color:var(--ac)">GitHub</a></p>
+</footer>
+</body>
+</html>
