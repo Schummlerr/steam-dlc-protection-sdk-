@@ -1,8 +1,8 @@
 {
-  "name": "steam-dlc-protection-sdk",
+  "name": "steam-dlc-delivery",
   "version": "1.0.0",
   "private": true,
-  "description": "Production-ready Steam DLC protection system with end-to-end encryption",
+  "description": "Server-side DLC content delivery for Steam games. ECDH P-256 key exchange. Unity C# SDK. MIT license.",
   "scripts": {
     "start": "cd local-test-server && npm start",
     "dev": "cd local-test-server && npm run dev",
@@ -12,13 +12,6 @@
     "test:ci": "DISABLE_RATE_LIMIT=true node tests/comprehensive-api-test.mjs",
     "test:prod": "bash scripts/test-production.sh",
     "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down",
-    "docker:test": "docker compose run --rm dlc-server npm test",
-    "admin": "node tools/dlc-admin.mjs",
-    "generate-key": "node tools/generate-aes-key.mjs",
-    "encrypt-bundle": "node tools/encrypt-dlc-bundle.mjs"
-  },
-  "engines": {
-    "node": ">=22.0.0"
+    "docker:down": "docker compose down"
   }
 }

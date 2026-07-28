@@ -1,22 +1,24 @@
-# Steam DLC Protection SDK
+# Steam DLC Delivery SDK
 
-SDK for protecting Steam DLCs with ECDH + AES-256-CBC+HMAC end-to-end encryption.  
-Includes a local test server, a production Supabase Edge Function, and a Unity client.
+Server-side DLC content delivery for Steam games.  
+ECDH P-256 key exchange + AES-256-CBC+HMAC. Unity client. MIT license.
+
+**What this does:** Your game ships with encrypted DLC AssetBundles. At runtime, a Steam-authenticated session negotiates a unique decryption key with the server. Paid DLC content is only decrypted for players who own it.
 
 ## Architecture
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Local Server** | Express.js / Node.js | Development and mock testing |
-| **Backend** | Supabase Edge Functions (Deno) | Production DLC verification |
-| **Client SDK** | Unity 2022+ / C# | Game-side integration |
-| **Database** | PostgreSQL (Supabase) | DLC keys and metadata |
-| **Crypto** | P-256 ECDH, AES-256-CBC, HMAC-SHA256 | End-to-end encryption |
+| Component | Stack | Role |
+|-----------|-------|------|
+| **Delivery Server** | Supabase Edge Functions (Deno) | Runtime key negotiation |
+| **Local Dev Server** | Express.js / Node.js | Mock server for development |
+| **Unity Client** | C# / Steamworks.NET | Runtime DLC loading |
+| **Database** | PostgreSQL (Supabase) | DLC keys, entitlements, tokens |
+| **Crypto** | P-256 ECDH, AES-256-CBC, HMAC-SHA256 | Per-session key delivery |
 
 ## Quick Start
 
 ```bash
-# Install and start the test server
+# Start the dev server
 cd local-test-server
 cp .env.example .env
 npm install
@@ -27,133 +29,54 @@ node tests/e2e-crypto-test.mjs
 node tests/comprehensive-api-test.mjs
 ```
 
+## How It Works
+
+1. **Encrypt** your DLC AssetBundle with `tools/encrypt-dlc-bundle.mjs`
+2. **Deploy** the AES key to the delivery server
+3. **Ship** the encrypted bundle with your game
+4. **At runtime**, the Unity client requests a key via Steam auth + ECDH
+5. **Server validates** ownership, delivers session-unique key
+6. **Client decrypts** and loads the bundle in memory
+
+## Unity Integration
+
+```csharp
+public class DlcLoader : MonoBehaviour {
+    public SteamDLCProtectionClient client;
+    public TextAsset encryptedDlcFile;
+
+    void Start() {
+        client.RequestDlcAccess(
+            key => {
+                var bundle = client.DecryptDlcAssetBundle(
+                    encryptedDlcFile.bytes, key);
+                AssetBundle.LoadFromMemory(bundle);
+            },
+            err => Debug.LogError($"DLC access denied: {err}")
+        );
+    }
+}
+```
+
+## Offline Access
+
+After the initial online verification, the client caches a 24-hour JWT token. The DLC works offline until the token expires. Self-host the server for full control.
+
 ## Project Structure
 
 ```
-steam-dlc-protection-sdk/
-├── local-test-server/       # Express.js test server
-├── supabase/                # Supabase Edge Function + migrations
-├── tests/                   # Test suites (31 tests)
-├── tools/                   # CLI tools (admin, encrypt, keygen)
-├── unity-client/            # Unity C# SDK
-├── scripts/                 # Deployment + test scripts
-└── docker-compose.yml       # Full-stack Docker setup
+├── local-test-server/    Dev server + mock DB
+├── supabase/             Edge Function + migrations
+├── unity-client/         Unity C# SDK
+├── tests/                E2E + comprehensive test suites
+├── tools/                CLI tools (encrypt, keygen, admin)
+└── docs/                 Landing page + SEO
 ```
 
-## API
+## Test Suite
 
-### POST /verify-dlc
-
-Verifies a player owns a DLC and returns a wrapped encryption key.
-
-**Request:**
-```json
-{
-  "steamAppId": 480,
-  "dlcId": 123456,
-  "ticketHex": "abcdef...",
-  "identity": "dlc-protection-sdk-v1",
-  "clientPublicKey": "base64-spki...",
-  "requestOfflineToken": true
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "steamId": "76561198000000000",
-  "wrappedKey": {
-    "serverPublicKey": "base64...",
-    "iv": "base64...",
-    "ciphertext": "base64...",
-    "mac": "base64..."
-  },
-  "offlineToken": "jwt...",
-  "offlineTokenExpiresInHours": 24
-}
-```
-
-### POST /verify-offline-token
-
-Validates a cached offline token and returns a fresh wrapped key.
-
-**Request:**
-```json
-{
-  "token": "jwt...",
-  "clientPublicKey": "base64-spki...",
-  "dlcId": 123456
-}
-```
-
-### GET /health
-
-Server health check.
-
-### GET /metrics
-
-Server metrics (uptime, request counts, rate limit status).
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3000` | Server port |
-| `MOCK_STEAM` | `true` | Skip real Steam API calls |
-| `MOCK_API_KEY` | `true` | Skip API key authentication |
-| `DISABLE_RATE_LIMIT` | `false` | Disable rate limiting |
-| `JWT_SECRET` | `"dev-jwt-secret..."` | Secret for offline tokens |
-
-## Testing
-
-```bash
-npm test                    # E2E + comprehensive (31 tests)
-npm run test:ci             # With rate limiting disabled
-node tests/developer-simulation.mjs   # Full developer workflow
-bash scripts/test-production.sh       # Production simulation
-```
-
-Tests cover: crypto roundtrip, input validation, rate limiting, forward secrecy, offline tokens, tool smoke tests, and admin CLI.
-
-## Crypto Protocol
-
-1. Client generates ephemeral P-256 ECDH key pair
-2. Client requests Steam auth ticket via `GetAuthTicketForWebApi()`
-3. Client sends `{ steamAppId, dlcId, ticketHex, clientPublicKey }` to server
-4. Server validates ticket via Steam API, checks DLC ownership
-5. Server generates ephemeral ECDH key pair, derives shared secret
-6. Server wraps the DLC AES-256 key with the transport key (HMAC-SHA256 + AES-256-CBC)
-7. Client unwraps AES key via ECDH agreement, verifies HMAC (timing-safe)
-8. Client decrypts the DLC AssetBundle
-
-**Bundle format:** `iv(16) | hmac(32) | ciphertext`
-
-## Deployment
-
-### Supabase
-
-```bash
-npx supabase login
-npx supabase link --project-ref YOUR_REF
-npx supabase db push
-npx supabase secrets set STEAM_WEB_API_KEY=your_key
-npx supabase secrets set MOCK_STEAM=false
-npx supabase functions deploy verify-dlc --no-verify-jwt
-```
-
-### Docker
-
-```bash
-docker compose up -d
-```
-Starts the server on port 3000, PostgreSQL on 5432, and Adminer on 8080.
-
-## Offline Support
-
-Players can cache a signed JWT token (default 24h TTL).  
-While the token is valid, the DLC works without internet access.
+29 tests covering crypto roundtrip, input validation, rate limiting, offline tokens, forward secrecy, and admin CLI. All passing.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — use it, modify it, self-host it.
