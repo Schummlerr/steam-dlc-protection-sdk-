@@ -30,21 +30,21 @@ function step(n, msg) { console.log("\n" + COLORS.cyan + "━━━ " + n + ": "
 
 async function main() {
   // ── 1. Developer Onboarding ──
-  step("1", "Developer registriert sich (SaaS)");
-  console.log("   Developer: Spacewar Games  |  Plan: Pro");
-  console.log("   Holzl API-Key: " + API_KEY);
-  ok("Developer-Konto erstellt, API-Key generiert");
+  step("1", "Developer registers (SaaS)");
+    console.log("   Developer: Spacewar Games  |  Plan: Pro");
+    console.log("   API-Key: ***");
+    ok("Developer account created, API key generated");
 
   // ── 2. Game + DLC registrieren ──
-  step("2", "Developer registriert Spiel + DLC");
+  step("2", "Developer registers game + DLC");
   const STEAM_APP_ID = 480;
   const DLC_ID = 123456;
-  console.log("   Spiel: Spacewar (AppID: " + STEAM_APP_ID + ")");
+  console.log("   Game: Spacewar (AppID: " + STEAM_APP_ID + ")");
   console.log("   DLC: Super DLC Pack (ID: " + DLC_ID + ")");
-  ok("Spiel und DLC registriert");
+  ok("Game and DLC registered");
 
   // ── 3. DLC Bundle verschlüsseln ──
-  step("3", "Developer verschlüsselt DLC AssetBundle");
+  step("3", "Developer encrypts DLC AssetBundle");
   const aesKey = crypto.randomBytes(32);
   console.log("   AES-256 Key: " + aesKey.toString("base64"));
 
@@ -54,19 +54,19 @@ async function main() {
   const enc = Buffer.concat([cipher.update(content), cipher.final()]);
   const mac = crypto.createHmac("sha256", aesKey).update(Buffer.concat([iv, enc])).digest();
   const bundle = Buffer.concat([iv, mac, enc]);
-  console.log("   Bundle: " + content.length + " → " + bundle.length + " Bytes (iv(16)+hmac(32)+ciphertext)");
-  console.log("   → AES Key in DB gespeichert für Steam DLC " + DLC_ID);
-  ok("DLC-Bundle verschlüsselt und Key hinterlegt");
+  console.log("   Bundle: " + content.length + " → " + bundle.length + " bytes (iv(16)+hmac(32)+ciphertext)");
+  console.log("   → AES key stored in DB for Steam DLC " + DLC_ID);
+  ok("DLC bundle encrypted and key stored");
 
-  // ── 4. Spieler online → verify-dlc ──
-  step("4", "Spieler startet Spiel (online) — DLC-Verifikation");
+  // ── 4. Player online → verify-dlc ──
+  step("4", "Player launches game (online) — DLC verification");
   const ecdh = crypto.createECDH("prime256v1");
   ecdh.generateKeys();
   const header = Buffer.from("3059301306072a8648ce3d020106082a8648ce3d030107034200", "hex");
   const pubSpki = Buffer.concat([header, ecdh.getPublicKey()]);
 
   const ticket = crypto.randomBytes(64).toString("hex");
-  console.log("   ECDH P-256 KeyPair + Steam Ticket generiert");
+  console.log("   ECDH P-256 KeyPair + Steam Ticket generated");
 
   const res = await fetch(BASE + "/verify-dlc", {
     method: "POST",
@@ -83,11 +83,11 @@ async function main() {
   assert.strictEqual(data.success, true);
   assert.ok(data.wrappedKey);
   assert.ok(data.offlineToken);
-  console.log("   SteamID: " + data.steamId + "  |  Offline-Token erhalten ✅");
+  console.log("   SteamID: " + data.steamId + "  |  Offline token received ✅");
   ok("verify-dlc: Steam Auth + DLC Ownership + Key Wrapping");
 
-  // ── 5. Client entschlüsselt AES Key ──
-  step("5", "Unity Client entschlüsselt DLC-Key (ECDH)");
+  // ── 5. Client decrypts AES key (ECDH) ──
+  step("5", "Unity Client decrypts DLC key (ECDH)");
   const svrSpki = Buffer.from(data.wrappedKey.serverPublicKey, "base64");
   assert.strictEqual(svrSpki.length, 91);
   const secret = ecdh.computeSecret(svrSpki.subarray(26));
@@ -102,24 +102,24 @@ async function main() {
   const d = crypto.createDecipheriv("aes-256-cbc", tk, Buffer.from(data.wrappedKey.iv, "base64"));
   const unwrapped = Buffer.concat([d.update(Buffer.from(data.wrappedKey.ciphertext, "base64")), d.final()]);
   assert.strictEqual(unwrapped.length, 32);
-  console.log("   HMAC verified ✅  |  AES-256 Key entschlüsselt (" + unwrapped.length + " Bytes)");
-  ok("ECDH Key Agreement → AES Key entschlüsselt");
+  console.log("   HMAC verified ✅  |  AES-256 Key decrypted (" + unwrapped.length + " bytes)");
+  ok("ECDH Key Agreement → AES Key decrypted");
 
-  // ── 6. Bundle laden ──
-  step("6", "Unity Client lädt DLC AssetBundle");
-  // Bundle-Format validieren: iv(16) + hmac(32) + ciphertext
-  assert.ok(bundle.length > 48, "Bundle muss größer als 48 Bytes sein (iv+hmac)");
-  assert.strictEqual(bundle.length % 16, 0, "Bundle muss AES-block-aligned sein");
-  console.log("   Bundle-Format korrekt: iv(16) + hmac(32) + ciphertext(" + (bundle.length - 48) + ")");
-  console.log("   → AssetBundle.LoadFromMemory(decryptedBytes) — DLC geladen!");
-  ok("DLC AssetBundle geladen (Format verifiziert)");
+  // ── 6. Load bundle ──
+  step("6", "Unity Client loads DLC AssetBundle");
+  // Bundle format: iv(16) + hmac(32) + ciphertext
+  assert.ok(bundle.length > 48, "Bundle must be larger than 48 bytes (iv+hmac)");
+  assert.strictEqual(bundle.length % 16, 0, "Bundle must be AES-block-aligned");
+  console.log("   Bundle format valid: iv(16) + hmac(32) + ciphertext(" + (bundle.length - 48) + ")");
+  console.log("   → AssetBundle.LoadFromMemory(decryptedBytes) — DLC loaded!");
+  ok("DLC AssetBundle loaded (format verified)");
 
   // ── 7. Offline ──
-  step("7", "Spieler geht offline — DLC funktioniert (24h Token)");
+  step("7", "Player goes offline — DLC still works (24h token)");
   console.log("   Token: " + data.offlineToken.substring(0, 50) + "...");
-  console.log("   Gültig: " + data.offlineTokenExpiresInHours + " Stunden");
+  console.log("   Valid for: " + data.offlineTokenExpiresInHours + " hours");
 
-  // Neue Sitzung, neue Keys — kein Internet
+  // New session, new keys — no internet
   const ecdh2 = crypto.createECDH("prime256v1");
   ecdh2.generateKeys();
   const spki2 = Buffer.concat([header, ecdh2.getPublicKey()]);
@@ -133,19 +133,19 @@ async function main() {
   assert.strictEqual(offRes.status, 200);
   assert.strictEqual(offData.success, true);
   assert.ok(offData.wrappedKey);
-  ok("Offline-Token akzeptiert — DLC weiterhin spielbar");
+  ok("Offline token accepted — DLC still playable");
 
   // ── 8. Admin Dashboard ──
-  step("8", "Developer Dashboard — Übersicht");
+  step("8", "Developer Dashboard — Overview");
   const gRes = await fetch(BASE + "/admin/games");
   const gData = await gRes.json();
   assert.strictEqual(gData.success, true);
   const game = gData.games[0];
   console.log("   " + game.name + " (ID: " + game.steamAppId + ")");
   console.log("   DLCs: " + game.dlcCount + "  |  Offline TTL: " + game.offlineTokenHours + "h");
-  ok("Admin Dashboard zeigt alle registrierten Spiele");
+  ok("Admin Dashboard shows all registered games");
 
-  // ── Ergebnis ──
+  // ── Results ──
   const total = passed + failed;
   console.log("\n" + COLORS.bold + "═══════════════════════════════════" + COLORS.reset);
   console.log(COLORS.bold + "  DEVELOPER SIMULATION: " + passed + "/" + total + " passed" + COLORS.reset);
@@ -155,12 +155,12 @@ async function main() {
   } else {
     console.log(COLORS.green + "  ✅ ALL " + total + "/" + total + " TESTS PASSED" + COLORS.reset);
     console.log("\n   Developer Experience:");
-    console.log("   1. Sign Up        ✅ API-Key erhalten");
+    console.log("   1. Sign Up        ✅ API key received");
     console.log("   2. Register Game  ✅ Steam App ID");
-    console.log("   3. Encrypt Bundle ✅ AES-256 verschlüsselt");
+    console.log("   3. Encrypt Bundle ✅ AES-256 encrypted");
     console.log("   4. Player Online  ✅ Steam + ECDH");
-    console.log("   5. Key Decrypt    ✅ AES Key erhalten");
-    console.log("   6. Load DLC       ✅ Bundle entschlüsselt");
+    console.log("   5. Key Decrypt    ✅ AES key received");
+    console.log("   6. Load DLC       ✅ Bundle decrypted");
     console.log("   7. Go Offline     ✅ Token (24h)");
     console.log("   8. Dashboard      ✅ Admin UI\n");
   }
