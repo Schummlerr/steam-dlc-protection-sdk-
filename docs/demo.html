@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>DLC Delivery Demo</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a12;color:#d0d0e8;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.container{text-align:center;max-width:500px;padding:40px}
+h1{font-size:28px;margin-bottom:8px}
+.sub{color:#7a7aaa;margin-bottom:32px;font-size:16px}
+.status-box{background:#12121e;border:1px solid #252538;border-radius:12px;padding:24px;margin-bottom:20px}
+.status-box .label{font-size:13px;color:#7a7aaa;margin-bottom:4px}
+.status-box .value{font-size:24px;font-weight:700}
+.green{color:#3daf7d}
+.blue{color:#4f8cff}
+.steps{text-align:left;background:#12121e;border:1px solid #252538;border-radius:12px;padding:20px;margin-bottom:20px}
+.steps h3{font-size:15px;color:#7a7aaa;margin-bottom:12px}
+.steps li{padding:8px 0;list-style:none;font-size:14px;border-bottom:1px solid #1a1a2a}
+.steps li:last-child{border:none}
+.steps .arrow{color:#4f8cff;margin-right:8px}
+button{background:linear-gradient(135deg,#4f8cff,#6a5acd);border:none;color:#fff;padding:14px 32px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer}
+button:hover{filter:brightness(1.1)}
+button:disabled{opacity:0.5;cursor:default}
+#result{margin-top:16px;padding:16px;border-radius:8px;font-size:14px}
+.ok{background:#0d2a1a;border:1px solid #3daf7d;color:#3daf7d}
+.err{background:#2a0d0d;border:1px solid #d44;color:#d44}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🔐 Steam DLC Delivery</h1>
+  <p class="sub">Ein System das Spiele-Inhalte verschlüsselt.<br>Nur wer bezahlt, kriegt den Schlüssel.</p>
+
+  <div class="status-box">
+    <div class="label">Server Status</div>
+    <div class="value green" id="status">▶️ Prüfe...</div>
+  </div>
+
+  <div class="steps">
+    <h3>So funktioniert's:</h3>
+    <li><span class="arrow">1.</span> Spieler startet das Spiel</li>
+    <li><span class="arrow">2.</span> Server prüft: "Hat er/sie bezahlt?"</li>
+    <li><span class="arrow">3.</span> Wenn ja → Schlüssel wird ausgeliefert</li>
+    <li><span class="arrow">4.</span> Inhalt wird entschlüsselt und geladen</li>
+    <li><span class="arrow">5.</span> 24h offline spielbar ohne Internet</li>
+  </div>
+
+  <button id="btn">🔄 Test starten</button>
+  <div id="result"></div>
+</div>
+
+<script>
+const btn=document.getElementById('btn');
+const status=document.getElementById('status');
+const result=document.getElementById('result');
+
+btn.onclick=async function(){
+  btn.disabled=true;
+  btn.textContent='⏳ Test läuft...';
+  result.className = '';
+  result.textContent = '';
+  status.textContent = '⏳ Verbinde...';
+
+  try {
+    const res = await fetch('https://waocbngkeujyejpfnahg.supabase.co/functions/v1/verify-dlc/health');
+    const data = await res.json();
+
+    status.textContent = '✅ Online — Server läuft!';
+    status.className = 'value green';
+    result.className = 'ok';
+    result.innerHTML = `
+      <strong>✅ Server antwortet!</strong><br><br>
+      Version: ${data.version}<br>
+      Offline-Tokens: ${data.offlineTokens ? '✅ Ja' : '❌ Nein'}<br>
+      Status: Läuft seit ${Math.floor(data.uptime)} Sekunden<br><br>
+      <small>Das heisst: Das System ist live und bereit.<br>
+      Ein Spieleentwickler kann es jetzt schon nutzen.</small>
+    `;
+  } catch(e) {
+    status.textContent = '❌ Keine Verbindung';
+    status.className = 'value green';
+    result.className = 'err';
+    result.innerHTML = `
+      <strong>❌ Keine Verbindung zum Server</strong><br><br>
+      ${e.message}<br><br>
+      <small>Der Server läuft nur wenn jemand ihn bezahlt.<br>
+      Aktuell ist er auf dem Gratis-Tarif.</small>
+    `;
+  }
+
+  btn.disabled=false;
+  btn.textContent='🔄 Nochmal testen';
+};
+</script>
+</body>
+</html>
